@@ -4,7 +4,6 @@ emoji: 🧹
 colorFrom: blue
 colorTo: indigo
 sdk: docker
-pinned: false
 tags: [openenv, reinforcement-learning, data-engineering]
 ---
 
