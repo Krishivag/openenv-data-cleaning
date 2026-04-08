@@ -1,0 +1,11 @@
+[project]
+name = "data_cleaning_env"
+version = "0.1.0"
+description = "Data cleaning environment"
+dependencies = [
+    "openenv-core",
+    "pydantic"
+]
+
+[project.scripts]
+server = "server.app:main"

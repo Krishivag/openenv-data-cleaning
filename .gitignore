@@ -1,0 +1,24 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Data
+*.db
+*.sqlite
+
+# IDEs
+.vscode/
+.idea/
+
+# OpenEnv temp
+validate_out.txt
+validation.txt
+explore.py
+explore2.py
