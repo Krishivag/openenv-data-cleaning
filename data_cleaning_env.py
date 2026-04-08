@@ -35,7 +35,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         # Use tempfile to allow concurrent sessions safely
         fd, path = tempfile.mkstemp(suffix=".sqlite")
         self.db_path = path
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
 
     def _populate_easy_task(self):
