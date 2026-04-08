@@ -29,6 +29,15 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         self.step_cnt: int = 0
         self.episode_id: str = ""
 
+    def _normalize_score(self, raw: float) -> float:
+        """Map a raw [0.0, 1.0] score to a strict (0, 1) range.
+        
+        Phase 2 deep validation requires scores strictly between 0 and 1
+        (not 0.0 and not 1.0). We linearly map [0, 1] -> [0.01, 0.99].
+        """
+        clamped = max(0.0, min(1.0, raw))
+        return 0.01 + clamped * 0.98
+
     def _setup_db(self):
         if self.conn:
             self.conn.close()
@@ -188,7 +197,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
             self._populate_hard_task()
             intro = "Task: Impute missing salaries in 'employees'. Update employees with NULL salary to the average salary of their respective department. Schema: departments(id, name), employees(id, name, dept_id, salary)."
             
-        return DataCleanerObservation(query_result=intro)
+        return DataCleanerObservation(query_result=intro, reward=0.01)
 
     def step(
         self,
@@ -224,13 +233,16 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
 
         # Evaluate score
         if self.task_name == "easy":
-            score = self._eval_easy_task()
+            raw_score = self._eval_easy_task()
         elif self.task_name == "medium":
-            score = self._eval_medium_task()
+            raw_score = self._eval_medium_task()
         else:
-            score = self._eval_hard_task()
+            raw_score = self._eval_hard_task()
+
+        # Normalize to strict (0, 1) range for Phase 2 validation
+        score = self._normalize_score(raw_score)
             
-        done = score >= 0.99 or self.step_cnt >= 10
+        done = raw_score >= 0.99 or self.step_cnt >= 10
         obs = DataCleanerObservation(
             query_result=result_str,
             error=error,

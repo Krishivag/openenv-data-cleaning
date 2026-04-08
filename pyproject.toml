@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "Data cleaning environment"
 dependencies = [
     "openenv-core",
-    "pydantic"
+    "pydantic",
+    "openai",
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "httpx"
 ]
 
 [project.scripts]

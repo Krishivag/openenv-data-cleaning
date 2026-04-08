@@ -16,7 +16,7 @@ BENCHMARK = os.getenv("MY_ENV_V4_BENCHMARK", "data_cleaning")
 MAX_STEPS = 10
 TEMPERATURE = 0.2
 MAX_TOKENS = 150
-SUCCESS_SCORE_THRESHOLD = 0.99
+SUCCESS_SCORE_THRESHOLD = 0.97
 
 SYSTEM_PROMPT = textwrap.dedent(
     """
@@ -94,7 +94,7 @@ async def main() -> None:
         history: List[str] = []
         rewards: List[float] = []
         steps_taken = 0
-        score = 0.0
+        score = 0.01
         success = False
 
         log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
@@ -112,7 +112,7 @@ async def main() -> None:
 
                 obs = await env.step_async(DataCleanerAction(sql_command=message))
 
-                reward = obs.reward if obs.reward is not None else 0.0
+                reward = obs.reward if obs.reward is not None else 0.01
                 if isinstance(reward, bool):
                     reward = float(reward)
                 done = obs.done
@@ -132,7 +132,7 @@ async def main() -> None:
                     score = reward
                     break
 
-            score = min(max(score, 0.0), 1.0)  # clamp to [0, 1]
+            score = min(max(score, 0.01), 0.99)  # clamp to strict (0, 1)
             success = score >= SUCCESS_SCORE_THRESHOLD
 
         finally:
