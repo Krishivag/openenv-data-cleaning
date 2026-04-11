@@ -4,6 +4,14 @@ import sqlite3
 import tempfile
 from typing import Any, Optional
 
+def format_score(val) -> float | int:
+    # OpenEnv requires EXACT integer 0 or 1 for boundaries, floats for in-between.
+    if val <= 0.0:
+        return 0
+    if val >= 1.0:
+        return 1
+    return float(val)
+
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
 
@@ -32,11 +40,6 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         self.task_name = ""
         self.step_cnt = 0
         self.episode_id = ""
-
-    def _normalize_score(self, raw):
-        """Clamp raw score to strict (0, 1) — maps [0,1] -> [0.01, 0.99]."""
-        clamped = max(0.0, min(1.0, raw))
-        return 0.01 + clamped * 0.98
 
     def _setup_db(self):
         if self.conn:
@@ -76,13 +79,13 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         current = set((r["name"], r["email"]) for r in rows)
 
         if current != expected:
-            return 0.01
+            return 0
         if len(rows) == 4:
-            return 0.99
+            return 1
         if len(rows) < 7:
             val = (7 - len(rows)) / 3.0
-            return max(0.01, min(0.99, float(val)))
-        return 0.01
+            return format_score(val)
+        return 0
 
     # --- task: medium (normalize emails) ---
 
@@ -103,7 +106,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         c.execute("SELECT email FROM contacts ORDER BY id")
         rows = c.fetchall()
         if len(rows) != 5:
-            return 0.01
+            return 0
 
         expected = [
             "alice@test.com", "bob@test.com", "charlie@test.com",
@@ -111,7 +114,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         ]
         correct = sum(1 for i, r in enumerate(rows) if r["email"] == expected[i])
         val = correct / 5.0
-        return max(0.01, min(0.99, float(val)))
+        return format_score(val)
 
     # --- task: hard (impute null salaries with dept avg) ---
 
@@ -147,7 +150,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         }
         correct = sum(1 for r in rows if r["salary"] == expected.get(r["id"]))
         val = correct / 8.0
-        return max(0.01, min(0.99, float(val)))
+        return format_score(val)
 
     # --- OpenEnv interface ---
 
@@ -183,7 +186,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
                      "respective department. Schema: departments(id, name), "
                      "employees(id, name, dept_id, salary).")
 
-        return DataCleanerObservation(query_result=intro, reward=0.01)
+        return DataCleanerObservation(query_result=intro, reward=0)
 
     def step(self, action, timeout_s=None, **kwargs):
         self.step_cnt += 1
@@ -214,8 +217,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         else:
             raw = self._eval_hard_task()
 
-        raw_score = self._normalize_score(raw)
-        score = max(0.01, min(0.99, float(raw_score)))
+        score = format_score(raw)
         done = raw >= 0.99 or self.step_cnt >= 10
 
         return DataCleanerObservation(
