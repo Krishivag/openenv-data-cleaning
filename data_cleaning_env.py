@@ -5,8 +5,9 @@ import tempfile
 from typing import Any, Optional
 
 def clamp_score(score: float) -> float:
-    epsilon = 1e-6
-    return max(epsilon, min(1.0 - epsilon, score))
+    # Robust clamping so rounding errors cannot make it 0.0 or 1.0
+    epsilon = 0.01
+    return float(max(epsilon, min(1.0 - epsilon, float(score))))
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
