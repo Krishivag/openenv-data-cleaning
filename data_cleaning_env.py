@@ -4,6 +4,10 @@ import sqlite3
 import tempfile
 from typing import Any, Optional
 
+def clamp_score(score: float) -> float:
+    epsilon = 1e-6
+    return max(epsilon, min(1.0 - epsilon, score))
+
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
 
@@ -76,12 +80,12 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         current = set((r["name"], r["email"]) for r in rows)
 
         if current != expected:
-            return 0.0
+            return clamp_score(0.0)
         if len(rows) == 4:
-            return 1.0
+            return clamp_score(1.0)
         if len(rows) < 7:
-            return (7 - len(rows)) / 3.0
-        return 0.0
+            return clamp_score((7 - len(rows)) / 3.0)
+        return clamp_score(0.0)
 
     # --- task: medium (normalize emails) ---
 
@@ -102,14 +106,14 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         c.execute("SELECT email FROM contacts ORDER BY id")
         rows = c.fetchall()
         if len(rows) != 5:
-            return 0.0
+            return clamp_score(0.0)
 
         expected = [
             "alice@test.com", "bob@test.com", "charlie@test.com",
             "david@test.com", "eve@test.com",
         ]
         correct = sum(1 for i, r in enumerate(rows) if r["email"] == expected[i])
-        return correct / 5.0
+        return clamp_score(correct / 5.0)
 
     # --- task: hard (impute null salaries with dept avg) ---
 
@@ -144,7 +148,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
             7: 80000,  8: 105000,
         }
         correct = sum(1 for r in rows if r["salary"] == expected.get(r["id"]))
-        return correct / 8
+        return clamp_score(correct / 8.0)
 
     # --- OpenEnv interface ---
 
@@ -180,7 +184,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
                      "respective department. Schema: departments(id, name), "
                      "employees(id, name, dept_id, salary).")
 
-        return DataCleanerObservation(query_result=intro, reward=0.01)
+        return DataCleanerObservation(query_result=intro, reward=clamp_score(0.01))
 
     def step(self, action, timeout_s=None, **kwargs):
         self.step_cnt += 1
