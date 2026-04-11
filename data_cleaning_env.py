@@ -4,18 +4,21 @@ import sqlite3
 import tempfile
 from typing import Any, Optional
 
-def format_score(val) -> float | int:
-    # OpenEnv requires EXACT integer 0 or 1 for boundaries, floats for in-between.
-    val = float(val)
-    if val <= 0.0:
-        return 0
-    if val >= 1.0:
-        return 1
-    # Clamp with min and max 0.01 and 0.99 for intermediate floats
-    return float(max(0.01, min(0.99, val)))
-
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
+
+
+# ── Score helper ──────────────────────────────────────────────────────
+# OpenEnv Phase 2 rejects scores that are exactly 0, 0.0, 1, or 1.0.
+# Every score MUST be a float strictly between 0 and 1.
+# This function guarantees output is always in [0.01, 0.99].
+def _clamp(val: float) -> float:
+    v = float(val)
+    if v <= 0.0:
+        return 0.01
+    if v >= 1.0:
+        return 0.99
+    return round(v, 4)  # keep it a clean float
 
 
 class DataCleanerAction(Action):
@@ -51,7 +54,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
 
-    # --- task: easy (dedup users) ---
+    # ── task: easy (dedup users) ──────────────────────────────────────
 
     def _populate_easy_task(self):
         c = self.conn.cursor()
@@ -81,15 +84,14 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         current = set((r["name"], r["email"]) for r in rows)
 
         if current != expected:
-            return 0
+            return _clamp(0.0)
         if len(rows) == 4:
-            return 1
+            return _clamp(1.0)
         if len(rows) < 7:
-            val = (7 - len(rows)) / 3.0
-            return format_score(val)
-        return 0
+            return _clamp((7 - len(rows)) / 3.0)
+        return _clamp(0.0)
 
-    # --- task: medium (normalize emails) ---
+    # ── task: medium (normalize emails) ───────────────────────────────
 
     def _populate_medium_task(self):
         c = self.conn.cursor()
@@ -108,17 +110,16 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         c.execute("SELECT email FROM contacts ORDER BY id")
         rows = c.fetchall()
         if len(rows) != 5:
-            return 0
+            return _clamp(0.0)
 
         expected = [
             "alice@test.com", "bob@test.com", "charlie@test.com",
             "david@test.com", "eve@test.com",
         ]
         correct = sum(1 for i, r in enumerate(rows) if r["email"] == expected[i])
-        val = correct / 5.0
-        return format_score(val)
+        return _clamp(correct / 5.0)
 
-    # --- task: hard (impute null salaries with dept avg) ---
+    # ── task: hard (impute null salaries with dept avg) ───────────────
 
     def _populate_hard_task(self):
         c = self.conn.cursor()
@@ -151,10 +152,9 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
             7: 80000,  8: 105000,
         }
         correct = sum(1 for r in rows if r["salary"] == expected.get(r["id"]))
-        val = correct / 8.0
-        return format_score(val)
+        return _clamp(correct / 8.0)
 
-    # --- OpenEnv interface ---
+    # ── OpenEnv interface ─────────────────────────────────────────────
 
     def reset(self, seed=None, episode_id=None, **kwargs):
         self.episode_id = episode_id or "easy"
@@ -188,7 +188,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
                      "respective department. Schema: departments(id, name), "
                      "employees(id, name, dept_id, salary).")
 
-        return DataCleanerObservation(query_result=intro, reward=0)
+        return DataCleanerObservation(query_result=intro, reward=0.01)
 
     def step(self, action, timeout_s=None, **kwargs):
         self.step_cnt += 1
@@ -219,8 +219,10 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         else:
             raw = self._eval_hard_task()
 
-        score = format_score(raw)
-        done = raw >= 0.99 or self.step_cnt >= 10
+        # raw is already clamped by _clamp() inside each eval function,
+        # but we clamp again here as the absolute last safety net.
+        score = _clamp(raw)
+        done = score >= 0.98 or self.step_cnt >= 10
 
         return DataCleanerObservation(
             query_result=result_str, error=error, done=done, reward=score,
