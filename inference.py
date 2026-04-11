@@ -108,6 +108,8 @@ def main():
                 reward = obs.reward if obs.reward is not None else 0.01
                 if isinstance(reward, bool):
                     reward = float(reward)
+                if reward <= 0.0: reward = 0.01
+                if reward >= 1.0: reward = 0.99
 
                 rewards.append(reward)
                 steps_taken = step
@@ -120,7 +122,7 @@ def main():
                 if obs.done:
                     break
 
-            final = rewards[-1] if rewards else 0.0
+            final = rewards[-1] if rewards else 0.01
             success = final >= SUCCESS_THRESHOLD
 
         except Exception as e:

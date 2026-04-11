@@ -8,17 +8,7 @@ from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
 
 
-# ── Score helper ──────────────────────────────────────────────────────
-# OpenEnv Phase 2 rejects scores that are exactly 0, 0.0, 1, or 1.0.
-# Every score MUST be a float strictly between 0 and 1.
-# This function guarantees output is always in [0.01, 0.99].
-def _clamp(val: float) -> float:
-    v = float(val)
-    if v <= 0.0:
-        return 0.01
-    if v >= 1.0:
-        return 0.99
-    return round(v, 4)  # keep it a clean float
+
 
 
 class DataCleanerAction(Action):
@@ -84,12 +74,15 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         current = set((r["name"], r["email"]) for r in rows)
 
         if current != expected:
-            return _clamp(0.0)
+            return 0.01
         if len(rows) == 4:
-            return _clamp(1.0)
+            return 0.99
         if len(rows) < 7:
-            return _clamp((7 - len(rows)) / 3.0)
-        return _clamp(0.0)
+            val = float((7 - len(rows)) / 3.0)
+            if val <= 0.0: return 0.01
+            if val >= 1.0: return 0.99
+            return val
+        return 0.01
 
     # ── task: medium (normalize emails) ───────────────────────────────
 
@@ -110,14 +103,17 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         c.execute("SELECT email FROM contacts ORDER BY id")
         rows = c.fetchall()
         if len(rows) != 5:
-            return _clamp(0.0)
+            return 0.01
 
         expected = [
             "alice@test.com", "bob@test.com", "charlie@test.com",
             "david@test.com", "eve@test.com",
         ]
         correct = sum(1 for i, r in enumerate(rows) if r["email"] == expected[i])
-        return _clamp(correct / 5.0)
+        val = float(correct / 5.0)
+        if val <= 0.0: return 0.01
+        if val >= 1.0: return 0.99
+        return val
 
     # ── task: hard (impute null salaries with dept avg) ───────────────
 
@@ -152,7 +148,10 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
             7: 80000,  8: 105000,
         }
         correct = sum(1 for r in rows if r["salary"] == expected.get(r["id"]))
-        return _clamp(correct / 8.0)
+        val = float(correct / 8.0)
+        if val <= 0.0: return 0.01
+        if val >= 1.0: return 0.99
+        return val
 
     # ── OpenEnv interface ─────────────────────────────────────────────
 
@@ -219,9 +218,12 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         else:
             raw = self._eval_hard_task()
 
-        # raw is already clamped by _clamp() inside each eval function,
-        # but we clamp again here as the absolute last safety net.
-        score = _clamp(raw)
+        if raw <= 0.0:
+            score = 0.01
+        elif raw >= 1.0:
+            score = 0.99
+        else:
+            score = float(raw)
         done = score >= 0.98 or self.step_cnt >= 10
 
         return DataCleanerObservation(
