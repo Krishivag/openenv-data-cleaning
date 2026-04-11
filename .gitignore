@@ -24,7 +24,6 @@ inference_test.log
 git_push_error.txt
 push_error.txt
 docker_build.log
-uv.lock
 
 .DS_Store
 Thumbs.db
