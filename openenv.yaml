@@ -1,13 +1,6 @@
+spec_version: 1
 name: data_cleaning_env
-version: 1.0.0
-description: SQLite data cleaning environment
-entrypoint: data_cleaning_env:DataCleaningEnv
-authors:
-  - name: Agent
-tasks:
-  - id: easy
-    description: Deduplicate users
-  - id: medium
-    description: Standardize emails
-  - id: hard
-    description: Impute missing salaries
+type: space
+runtime: fastapi
+app: server.app:app
+port: 7860
