@@ -216,7 +216,7 @@ class DataCleaningEnv(Environment[DataCleanerAction, DataCleanerObservation, Dat
         else:
             raw = self._eval_hard_task()
 
-        score = self._normalize_score(raw)
+        score = clamp_score(self._normalize_score(raw))
         done = raw >= 0.99 or self.step_cnt >= 10
 
         return DataCleanerObservation(
