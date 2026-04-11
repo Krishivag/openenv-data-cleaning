@@ -6,11 +6,13 @@ from typing import Any, Optional
 
 def format_score(val) -> float | int:
     # OpenEnv requires EXACT integer 0 or 1 for boundaries, floats for in-between.
+    val = float(val)
     if val <= 0.0:
         return 0
     if val >= 1.0:
         return 1
-    return float(val)
+    # Clamp with min and max 0.01 and 0.99 for intermediate floats
+    return float(max(0.01, min(0.99, val)))
 
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import Action, Observation, State
